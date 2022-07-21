@@ -44,17 +44,11 @@ YCbCr dequantize(DYDCbDCr value) {
     return ycc;
 }
 
-double clamp(double x) {
-    if(x < 0) return 0;
-    if(x > 1) return 1;
-    return x;
-}
-
 DYDCbDCr quantize(YCbCr value) {
     DYDCbDCr ret;
-    ret.DY = (219*clamp(value.Y) + 16);
-    ret.DCb = (224*clamp(value.Y) + 128);
-    ret.DCr = (224*clamp(value.Y) + 128);
+    ret.DY = (uint8_t)(219*value.Y + 16);
+    ret.DCb = (uint8_t)(224*value.Cb + 128);
+    ret.DCr = (uint8_t)(224*value.Cr + 128);
     return ret;
 } 
 
@@ -112,14 +106,14 @@ int main(int argc, char **argv) {
     newframe.Y = malloc(960*540);
     newframe.Cb = malloc(480*270);
     newframe.Cr = malloc(480*270);
-    FILE *input = popen("ffmpeg -i /tank/BD/apocalypto/BDMV/STREAM/00001.m2ts"
-        "-f rawvideo -", "r");
-    FILE *output = popen("ffmpeg -f rawvideo"
-        "-pix_fmt yuv420p -s:v 1920x1080 -r 24000/1001-i pipe:","w");
+    FILE *input = popen("ffmpeg -loglevel error -i /tank/BD/apocalypto/BDMV/STREAM/00001.m2ts "
+        "-t 0:05:00 -f rawvideo -", "r");
+    FILE *output = popen("ffmpeg -f rawvideo "
+        "-pix_fmt yuv420p -s:v 960x540 -r 24000/1001 -i pipe: -y -colorspace bt709 -c:v libx264 -preset slow -crf 22 fixed1886.mp4","w");
     while(readframe(oldframe,input)) {
         for(int y = 0; y < 540; y++) {
             for(int x = 0; x < 960; x++) {
-                DYDCbDCr quant = {.DY = oldframe.Y[y*1920 + x*2], 
+                DYDCbDCr quant = {.DY = oldframe.Y[y*2*1920 + x*2], 
                     .DCb = oldframe.Cb[y*960 + x], .DCr = oldframe.Cr[y*960 + x]};
                 DYDCbDCr newquant = fix(quant);
                 newframe.Y[y*960 + x] = newquant.DY;
@@ -131,5 +125,7 @@ int main(int argc, char **argv) {
         }
         writeframe(newframe, output);
     }
+    pclose(input);
+    pclose(output);
 }
 
